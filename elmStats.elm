@@ -12,6 +12,8 @@ import String exposing (split, join)
 -- import List exposing (..)
 -- import List exposing (filter)
 
+import Debug exposing (log)
+
 type alias Player = {
     id: Int
   , rank: String
@@ -20,7 +22,7 @@ type alias Player = {
   , played: String 
   , sets: String 
   , games: String
-  , setsWon: String
+  , setsWon: Int
   , gamesWon: String
 }
 type alias Players = List Player
@@ -29,6 +31,7 @@ type alias Model = {
     url: String
   , area: String
   , comment: String
+  , sortedBySetsWon: Bool
   , players: Players
   }
 
@@ -38,6 +41,7 @@ type Msg =
     HttpInfo (Result Http.Error (List PlayerJson)) 
   | Change String 
   | ChangeArea String
+  | SortBySetsWon
 
 main = Html.program { init = init, view = view, update = updateModel, subscriptions = subscriptions }
 
@@ -53,13 +57,14 @@ view model =
   div [
     class "container"
   ] [
-    h2 [] [text "Elm Basic"]
+    h2 [] [text "Elm Stats"]
     
   , input [ onInput Change ] []
   , br [] []
   , input [ onInput ChangeArea ] []
 
-  , button [] []
+  , br [] []
+  , button [onClick SortBySetsWon] [text "Sort by sets won"]
   
   , br [] [], br [] [], text model.comment
 
@@ -71,26 +76,14 @@ playerLi p =
   li [] 
   [
     text 
-      <| "id: " ++ (toString p.id) ++ " " ++ p.name ++ " Rank: " ++ p.rank 
-          ++ " Won: " ++  p.won
-          ++ " Played: " ++  p.played
-          ++ " Sets: " ++  p.sets
-          ++ " Games: " ++  p.games
-          ++ " setsWon: " ++  p.setsWon
+      <| -- "id: " ++ (toString p.id) ++ " " ++ 
+          " setsWon: " ++ (toString p.setsWon) ++ "     "
+          ++ p.name ++ "      Rank: " ++ p.rank 
+          -- ++ " Won: " ++  p.won
+          -- ++ " Played: " ++  p.played
+          -- ++ " Sets: " ++  p.sets
+          -- ++ " Games: " ++  p.games
   ]
-
-playerFromJson : PlayerJson -> Player
-playerFromJson pj = { 
-    id = 1
-  , name = pj.name
-  , rank = pj.rank 
-  , won = pj.won 
-  , played = pj.played
-  , sets = pj.sets
-  , games = pj.games
-  , setsWon = toString <| getSetsCountPF True pj
-  , gamesWon = toString <| getGamesCount True pj
-  }
 
 getSetsCount won player = 
   let 
@@ -118,7 +111,6 @@ getSetsCountPF won player =
         Maybe.withDefault "000" <| List.head <| List.drop 1 setsWonLost
 
 getGamesCount won player =
-
   let 
     chars = split player.games ""
     charsNoSpaces = List.filter (\s -> s /= " ") chars
@@ -131,12 +123,24 @@ getGamesCount won player =
       False ->
         Maybe.withDefault "111" <| List.head <| List.drop 1 gamesInfo
         
+playerFromJson : PlayerJson -> Player
+playerFromJson pj = { 
+    id = 1
+  , name = pj.name
+  , rank = pj.rank 
+  , won = pj.won 
+  , played = pj.played
+  , sets = pj.sets
+  , games = pj.games
+  , setsWon = strToInt <| getSetsCountPF True pj
+  , gamesWon = getGamesCount True pj
+  }
+
 updateModel : Msg -> Model -> (Model, Cmd Msg)
 updateModel update model = 
   case update of
     Change s   ->    
       (   {model | url = s}
-        -- , Cmd.none
         , getHttp s model.area
         )
 
@@ -145,15 +149,10 @@ updateModel update model =
         , getHttp model.url s
       )
 
-    -- HttpInfo _  ->    ( model, Cmd.none)
-
     HttpInfo (Ok ps)  ->    
       let 
-        -- firstPlayer ps  = Maybe.withDefault "" <| List.head ps
         mapPlayers ps   = List.map playerFromJson ps 
-        -- mapPlayers ps   = List.map (\p -> { id = 1, name = p.name }) ps 
       in
-      -- ( {model | comment = firstPlayer ps}, Cmd.none)
       ( {model | players = mapPlayers ps}, Cmd.none)
 
     HttpInfo (Result.Err error) -> 
@@ -161,6 +160,38 @@ updateModel update model =
         errInfo = httpErrorToString error
       in
       ( {model | comment = errInfo}, Cmd.none)
+
+    SortBySetsWon -> 
+      let 
+        sorted = not model.sortedBySetsWon
+        sortedPlayers = log "sorted ps" <| sortPlayers sorted model.players
+      in
+      ( { model 
+          | comment = "sorted by sets " ++ toString sorted, 
+            sortedBySetsWon = sorted
+          , players = sortedPlayers
+        }, Cmd.none)
+
+strToInt s = Result.withDefault 0 <| toInt s
+
+sortPlayers asc =
+  List.sortWith 
+    (\p1 p2 -> 
+      case asc of
+        True ->  compare p1.setsWon p2.setsWon
+        False -> compare p2.setsWon p1.setsWon
+        -- True -> compare p1.name p2.name
+        -- False -> compare p2.name p1.name
+    )
+
+sortPlayersByName asc =
+  List.sortWith 
+    (\p1 p2 -> 
+      case asc of
+        True -> compare p1.name p2.name
+        False -> compare p2.name p1.name
+    )
+
 
 httpErrorToString error = 
   case error of 
@@ -191,6 +222,7 @@ initialModelState = {
       url = initialUrl
     , area = initialItem
     , comment = "hello, FullStack Bytes"
+    , sortedBySetsWon = True
     , players = [
       {
           id = 1
@@ -200,7 +232,7 @@ initialModelState = {
         , played = "1" 
         , sets = "1-2"
         , games = "3-4"
-        , setsWon = "1"
+        , setsWon = 1
         , gamesWon = "3"
       }
     , {
@@ -211,7 +243,7 @@ initialModelState = {
         , played = "1" 
         , sets = "1-2"
         , games = "3-4"
-        , setsWon = "1"
+        , setsWon = 2
         , gamesWon = "3"
       }]
   } 
@@ -224,41 +256,13 @@ init = (initialModelState,
 getHttp : String -> String -> Cmd Msg
 getHttp urlStub item =
   let
-      url = urlStub ++ item
+    url = urlStub ++ item
   in
-    Http.send HttpInfo <| 
-      -- httpGetPics url
-      httpGetPlayers url
+    Http.send HttpInfo <| httpGetPlayers url
     
--- httpGetPics : String -> Request String
--- httpGetPics url = 
---   Http.get url decodeGifUrl
-
--- httpGetPlayers : String -> Request (List String)
 httpGetPlayers : String -> Request (List PlayerJson)
-httpGetPlayers url = 
-  Http.get url 
-    -- (Json.Decode.list decodePlayer)
-    (Json.Decode.list decodePlayerFlexible)
-    -- (Json.Decode.list decodePlayerName)
+httpGetPlayers url = Http.get url (Json.Decode.list decodePlayerFlexible)
   
--- decodeGifUrl : Json.Decode.Decoder String
--- decodeGifUrl =
---   Json.Decode.at ["data", "image_url"] Json.Decode.string
-
--- https://tennis-stats.herokuapp.com/teams/5
-
--- field "Rank" int
-
--- decodePlayer : Json.Decode.Decoder String
--- -- decodePlayer = field "Rank" int
--- decodePlayer = field "Rank" string
-
--- decodePlayer : Json.Decode.Decoder PlayerJson
--- decodePlayer = 
---   map2 PlayerJson 
---     decodePlayerRank decodePlayerName
-
 -- NOTE: 1) no max on fields supported
 -- 2) mismatch between this fn and json record has errors that aren't so clear.
 -- This may or may not be what's meant in comment on Decode page about extended
@@ -273,12 +277,6 @@ decodePlayerFlexible =
   required "Name"   string <| 
   required "Rank"   string <| 
   Json.Decode.succeed PlayerJson
-
--- decodePlayerRank : Json.Decode.Decoder String
--- decodePlayerRank = field "Rank" string
-
--- decodePlayerName : Json.Decode.Decoder String
--- decodePlayerName = field "Name" string
 
 type alias PlayerJson = { 
     rank: String
@@ -309,19 +307,28 @@ required key valDecoder decoder =
 
 -- LEGACY decoder test code
 
+-- decodeGifUrl : Json.Decode.Decoder String
+-- decodeGifUrl =
+--   Json.Decode.at ["data", "image_url"] Json.Decode.string
+
+-- decodePlayer : Json.Decode.Decoder PlayerJson
+-- decodePlayer = 
+--   map2 PlayerJson 
+--     decodePlayerRank decodePlayerName
+
+-- decodePlayerRank : Json.Decode.Decoder String
+-- decodePlayerRank = field "Rank" string
+
 type alias User =
   { id : String
   , name : String
-  -- , email : String
   }
 userDecoder : Decoder User
 userDecoder =
 -- working out where the precedence is here
   ((Json.Decode.succeed User
       |> required "id" string)
-    -- |> required "id" int
       |> required "name" string)
-    -- |> required "email" string
 
 decodeUserId : Json.Decode.Decoder String
 decodeUserId = field "Id" string
@@ -395,12 +402,6 @@ usrDcdr4bit : Json.Decode.Decoder (String -> String -> User)
 usrDcdr4bit = Json.Decode.succeed User
 
 -- usrDcdr4a = requiredString "name" <| requiredString "id" <| Json.Decode.succeed User
-
--- type alias User =
---   { id : String
---   , name : String
---   -- , email : String
---   }
 
 -- NOTE: same as usrDcdr2d
 userDecoderRev : Decoder User
