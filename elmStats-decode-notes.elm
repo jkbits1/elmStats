@@ -305,3 +305,108 @@ required key valDecoder decoder =
     custom (Json.Decode.field key valDecoder) decoder
 
 
+-- LEGACY decoder test code
+
+-- decodeGifUrl : Json.Decode.Decoder String
+-- decodeGifUrl =
+--   Json.Decode.at ["data", "image_url"] Json.Decode.string
+
+-- decodePlayer : Json.Decode.Decoder PlayerJson
+-- decodePlayer = 
+--   map2 PlayerJson 
+--     decodePlayerRank decodePlayerName
+
+-- decodePlayerRank : Json.Decode.Decoder String
+-- decodePlayerRank = field "Rank" string
+
+type alias User =
+  { id : String
+  , name : String
+  }
+userDecoder : Decoder User
+userDecoder =
+-- working out where the precedence is here
+  ((Json.Decode.succeed User
+      |> required "id" string)
+      |> required "name" string)
+
+decodeUserId : Json.Decode.Decoder String
+decodeUserId = field "Id" string
+
+requiredUserId : Decoder (String -> User) -> Decoder User
+requiredUserId decoder =
+    custom (Json.Decode.field "Id" string) decoder
+
+-- types from repl
+x1 : Json.Decode.Decoder (String -> String -> User)
+x1 = Json.Decode.succeed User
+
+fn1 : Json.Decode.Decoder (String -> b) -> Json.Decode.Decoder b
+fn1 = required "id" string
+
+x2 : Json.Decode.Decoder (String -> User)
+x2 = fn1 x1
+
+fn2 : Json.Decode.Decoder (String -> b) -> Json.Decode.Decoder b
+fn2 = required "name" string
+
+usrDcdr2 : Json.Decode.Decoder User
+usrDcdr2 = fn2 x2
+
+usrDcdr2a = fn2 <| fn1 x1
+
+usrDcdr2b = fn2 <| fn1 <| Json.Decode.succeed User
+
+-- required : String -> Decoder a -> Decoder (a -> b) -> Decoder b
+
+usrDcdr2c = fn2 <| required "id" string <| Json.Decode.succeed User
+
+usrDcdr2d = required "name" string <| required "id" string <| Json.Decode.succeed User
+
+usrDcdr3 = required "name" string <| requiredString "id" <| Json.Decode.succeed User
+usrDcdr3a = requiredString "name" <| requiredString "id" <| Json.Decode.succeed User
+
+-- compiles and works
+usrDcdr3bit : Json.Decode.Decoder (String -> b) -> Json.Decode.Decoder b
+usrDcdr3bit = requiredString "id"
+usrDcdr3b = requiredString "name" <| usrDcdr3bit <| Json.Decode.succeed User
+
+usrDcdr3bit2 : Json.Decode.Decoder (String -> String -> User) -> Json.Decode.Decoder (String -> User)
+usrDcdr3bit2 = requiredString "id"
+usrDcdr3c = requiredString "name" <| usrDcdr3bit2 <| Json.Decode.succeed User
+
+-- NOTE: this fn acts like both requiredUserString and requiredUserString2, due 
+--       to flexible Haskell types
+requiredString : String -> Decoder (String -> b) -> Decoder b
+requiredString key decoder =
+    custom (Json.Decode.field key string) decoder
+
+requiredUserString : String -> Decoder (String -> String -> User) -> Decoder (String -> User)
+requiredUserString key decoder =
+    custom (Json.Decode.field key string) decoder
+
+requiredUserString2 : String -> Decoder (String -> User) -> Decoder User
+requiredUserString2 key decoder =
+    custom (Json.Decode.field key string) decoder
+
+usrDcdr4 : Json.Decode.Decoder (String -> User)
+usrDcdr4 = requiredUserString "id" <| Json.Decode.succeed User
+
+usrDcdr4a = required "name" string <| requiredUserString "id" <| Json.Decode.succeed User
+usrDcdr4b = requiredUserString2 "name" <| requiredUserString "id" <| Json.Decode.succeed User
+
+-- usrDcdr4 : Json.Decode.Decoder (String -> User) -> Json.Decode.Decoder User
+-- usrDcdr4 = requiredUserString "id" 
+
+usrDcdr4bit : Json.Decode.Decoder (String -> String -> User)
+usrDcdr4bit = Json.Decode.succeed User
+
+-- usrDcdr4a = requiredString "name" <| requiredString "id" <| Json.Decode.succeed User
+
+-- NOTE: same as usrDcdr2d
+userDecoderRev : Decoder User
+userDecoderRev =
+  required "name" string  <| 
+  required "id" string    <| 
+  Json.Decode.succeed User
+
