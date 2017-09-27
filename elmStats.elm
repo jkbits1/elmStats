@@ -21,6 +21,7 @@ type alias Player = {
   , sets: String 
   , games: String
   , setsWon: String
+  , gamesWon: String
 }
 type alias Players = List Player
 
@@ -57,6 +58,8 @@ view model =
   , input [ onInput Change ] []
   , br [] []
   , input [ onInput ChangeArea ] []
+
+  , button [] []
   
   , br [] [], br [] [], text model.comment
 
@@ -86,6 +89,7 @@ playerFromJson pj = {
   , sets = pj.sets
   , games = pj.games
   , setsWon = toString <| getSetsCountPF True pj
+  , gamesWon = toString <| getGamesCount True pj
   }
 
 getSetsCount won player = 
@@ -113,6 +117,20 @@ getSetsCountPF won player =
       False ->
         Maybe.withDefault "000" <| List.head <| List.drop 1 setsWonLost
 
+getGamesCount won player =
+
+  let 
+    chars = split player.games ""
+    charsNoSpaces = List.filter (\s -> s /= " ") chars
+    newJoin = join "" charsNoSpaces
+    gamesInfo = split "-" newJoin
+  in 
+    case won of 
+      True ->
+        Maybe.withDefault "111" <| List.head gamesInfo
+      False ->
+        Maybe.withDefault "111" <| List.head <| List.drop 1 gamesInfo
+        
 updateModel : Msg -> Model -> (Model, Cmd Msg)
 updateModel update model = 
   case update of
@@ -182,7 +200,8 @@ initialModelState = {
         , played = "1" 
         , sets = "1-2"
         , games = "3-4"
-        , setsWon = "1,2,2"
+        , setsWon = "1"
+        , gamesWon = "3"
       }
     , {
           id = 2
@@ -192,7 +211,8 @@ initialModelState = {
         , played = "1" 
         , sets = "1-2"
         , games = "3-4"
-        , setsWon = "1,2,2"
+        , setsWon = "1"
+        , gamesWon = "3"
       }]
   } 
 
@@ -287,11 +307,7 @@ required key valDecoder decoder =
     custom (Json.Decode.field key valDecoder) decoder
 
 
-
-
-
-
-
+-- LEGACY decoder test code
 
 type alias User =
   { id : String
